@@ -53,17 +53,28 @@ class Game {
     }
 
     update(deltaTime) {
+        this.map.update(deltaTime);
         this.entities.update(deltaTime);
+        this.updateHUD();
+    }
+
+    updateHUD() {
+        const squadCount = this.entities.squad.length;
+        const statusText = document.getElementById('status-text');
+        if (statusText) {
+            statusText.innerHTML = `Squad Status: ${squadCount > 0 ? 'Operational' : 'Terminated'} | Units: ${squadCount}`;
+            statusText.style.color = squadCount > 0 ? '#00f2ff' : '#ff3366';
+        }
     }
 
     draw() {
-        // Background com gradiente sutil
+        // Background com gradiente e efeito de Profundidade
         const bgGrade = this.ctx.createRadialGradient(
-            this.width / 2, this.height / 2, 0,
-            this.width / 2, this.height / 2, this.width / 2
+            this.width / 2, this.height / 2, 100,
+            this.width / 2, this.height / 2, this.width
         );
-        bgGrade.addColorStop(0, '#0a0a0a');
-        bgGrade.addColorStop(1, '#050505');
+        bgGrade.addColorStop(0, '#0a0a1a');
+        bgGrade.addColorStop(1, '#020205');
         this.ctx.fillStyle = bgGrade;
         this.ctx.fillRect(0, 0, this.width, this.height);
 
@@ -78,20 +89,38 @@ class Game {
     }
 
     drawTargetMarker() {
+        const time = Date.now() * 0.005;
+        const size = 10 + Math.sin(time) * 3;
+
+        this.ctx.save();
+        this.ctx.translate(this.targetPoint.x, this.targetPoint.y);
+
+        this.ctx.strokeStyle = '#00f2ff';
+        this.ctx.shadowBlur = 15;
+        this.ctx.shadowColor = '#00f2ff';
+        this.ctx.lineWidth = 2;
+
+        // Círculo Pulsante
         this.ctx.beginPath();
-        this.ctx.strokeStyle = 'rgba(0, 242, 255, 0.5)';
-        this.ctx.arc(this.targetPoint.x, this.targetPoint.y, 8, 0, Math.PI * 2);
+        this.ctx.arc(0, 0, size, 0, Math.PI * 2);
         this.ctx.stroke();
 
+        // Crosshair
         this.ctx.beginPath();
-        this.ctx.lineWidth = 2;
-        this.ctx.moveTo(this.targetPoint.x - 5, this.targetPoint.y - 5);
-        this.ctx.lineTo(this.targetPoint.x + 5, this.targetPoint.y + 5);
-        this.ctx.moveTo(this.targetPoint.x + 5, this.targetPoint.y - 5);
-        this.ctx.lineTo(this.targetPoint.x - 5, this.targetPoint.y + 5);
+        this.ctx.moveTo(-size - 5, 0);
+        this.ctx.lineTo(-size + 2, 0);
+        this.ctx.moveTo(size + 5, 0);
+        this.ctx.lineTo(size - 2, 0);
+        this.ctx.moveTo(0, -size - 5);
+        this.ctx.lineTo(0, -size + 2);
+        this.ctx.moveTo(0, size + 5);
+        this.ctx.lineTo(0, size - 2);
         this.ctx.stroke();
+
+        this.ctx.restore();
     }
 }
+
 
 const game = new Game();
 game.start();

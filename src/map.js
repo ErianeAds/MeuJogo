@@ -3,51 +3,73 @@ export class Map {
         this.game = game;
         this.obstacles = [];
         this.gridSize = 40;
+        this.scanlinePos = 0;
 
-        // Gera alguns obstáculos iniciais
         this.generateLevel();
     }
 
     generateLevel() {
-        // Exemplo de obstáculos: {x, y, w, h}
         this.obstacles = [
-            { x: 300, y: 200, w: 40, h: 200 },
-            { x: 500, y: 400, w: 120, h: 40 },
-            { x: 600, y: 100, w: 40, h: 100 }
+            { x: 300, y: 150, w: 60, h: 250 },
+            { x: 550, y: 400, w: 150, h: 60 },
+            { x: 650, y: 120, w: 60, h: 120 },
+            { x: 200, y: 500, w: 200, h: 40 }
         ];
     }
 
-    draw(ctx) {
-        ctx.fillStyle = '#1a1a1a';
-        ctx.strokeStyle = '#222';
+    update(deltaTime) {
+        this.scanlinePos += deltaTime * 50;
+        if (this.scanlinePos > this.game.height) this.scanlinePos = 0;
+    }
 
-        // Desenha Grid de Fundo de Baixa Opacidade
+    draw(ctx) {
+        // Grid de Fundo Dinâmico
+        ctx.strokeStyle = 'rgba(0, 242, 255, 0.05)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        for (let x = 0; x < this.game.width; x += this.gridSize) {
+        for (let x = 0; x <= this.game.width; x += this.gridSize) {
             ctx.moveTo(x, 0);
             ctx.lineTo(x, this.game.height);
         }
-        for (let y = 0; y < this.game.height; y += this.gridSize) {
+        for (let y = 0; y <= this.game.height; y += this.gridSize) {
             ctx.moveTo(0, y);
             ctx.lineTo(this.game.width, y);
         }
         ctx.stroke();
 
+        // Scanline Efeito
+        ctx.fillStyle = 'rgba(0, 242, 255, 0.02)';
+        ctx.fillRect(0, this.scanlinePos, this.game.width, 2);
+
         // Desenha Obstáculos
-        ctx.fillStyle = '#111';
-        ctx.strokeStyle = '#00f2ff';
         this.obstacles.forEach(obs => {
+            const grad = ctx.createLinearGradient(obs.x, obs.y, obs.x + obs.w, obs.y + obs.h);
+            grad.addColorStop(0, '#111');
+            grad.addColorStop(1, '#1a1a1a');
+
+            ctx.fillStyle = grad;
             ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
-            ctx.shadowBlur = 5;
+
+            // Borda Neon
+            ctx.strokeStyle = '#00f2ff';
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
             ctx.shadowColor = '#00f2ff';
             ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
             ctx.shadowBlur = 0;
+
+            // Detalhes Internos (Pattern)
+            ctx.strokeStyle = 'rgba(0, 242, 255, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(obs.x + 10, obs.y);
+            ctx.lineTo(obs.x + 10, obs.y + obs.h);
+            ctx.stroke();
         });
     }
 
     checkCollision(x, y, radius) {
         for (let obs of this.obstacles) {
-            // AABB vs Circle Simplificado
             if (x + radius > obs.x && x - radius < obs.x + obs.w &&
                 y + radius > obs.y && y - radius < obs.y + obs.h) {
                 return true;
@@ -56,3 +78,4 @@ export class Map {
         return false;
     }
 }
+
