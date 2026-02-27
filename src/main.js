@@ -61,11 +61,23 @@ class Game {
     updateHUD() {
         const squadCount = this.entities.squad.length;
         const statusText = document.getElementById('status-text');
+        const xpPercent = (this.entities.xp / this.entities.xpToNextLevel) * 100;
+
         if (statusText) {
-            statusText.innerHTML = `Squad Status: ${squadCount > 0 ? 'Operational' : 'Terminated'} | Units: ${squadCount}`;
-            statusText.style.color = squadCount > 0 ? '#00f2ff' : '#ff3366';
+            statusText.innerHTML = `
+                <div style="margin-bottom: 5px; font-weight: bold;">
+                    LEVEL: ${this.entities.level} | UNITS: ${squadCount}
+                </div>
+                <div style="width: 200px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 5px;">
+                    <div style="width: ${xpPercent}%; height: 100%; background: #00f2ff; box-shadow: 0 0 10px #00f2ff; transition: width 0.3s ease;"></div>
+                </div>
+                <div style="font-size: 10px; color: ${squadCount > 0 ? '#00f2ff' : '#ff3366'}">
+                    SQUAD STATUS: ${squadCount > 0 ? 'OPERATIONAL' : 'TERMINATED'}
+                </div>
+            `;
         }
     }
+
 
     draw() {
         // Background com gradiente e efeito de Profundidade
