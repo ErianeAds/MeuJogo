@@ -35,7 +35,7 @@ export class EntityManager {
     update(deltaTime) {
         // Spawn de inimigos
         this.spawnTimer += deltaTime;
-        if (this.spawnTimer > 3 && this.enemies.length < 5) {
+        if (this.spawnTimer > 3 && this.enemies.length < 8) {
             this.spawnEnemy();
             this.spawnTimer = 0;
         }
@@ -56,12 +56,11 @@ export class EntityManager {
         this.particles = this.particles.filter(p => p.life > 0);
         this.particles.forEach(p => p.update(deltaTime));
 
-        // Colisões de Projéteis
+        // Colisões
         this.checkProjectileCollisions();
     }
 
     spawnEnemy() {
-        // Alterna entre inimigo móvel e torre estática
         if (Math.random() > 0.7) {
             const x = Math.random() * (this.game.width - 200) + 100;
             const y = Math.random() * (this.game.height - 200) + 100;
@@ -71,100 +70,46 @@ export class EntityManager {
         } else {
             const x = this.game.width + 50;
             const y = Math.random() * (this.game.height - 100) + 50;
-            this.enemies.push(new Enemy(x, y));
+            this.enemies.push(new Enemy(x, y, this));
         }
     }
-...
-class Turret extends Unit {
-    constructor(x, y, manager) {
-        super(x, y, 'enemy', manager);
-        this.color = '#ff9900'; // Cor de alerta
-        this.health = 150;
-        this.range = 350;
-        this.fireRate = 1.5;
-        this.radius = 18;
+
+    checkProjectileCollisions() {
+        this.projectiles.forEach(p => {
+            const targets = p.ownerType === 'squad' ? this.enemies : this.squad;
+            targets.forEach(t => {
+                const dx = p.x - t.x;
+                const dy = p.y - t.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < t.radius + 2) {
+                    t.health -= 15;
+                    p.dead = true;
+                    this.createExplosion(p.x, p.y, p.color);
+                }
+            });
+
+            if (this.game.map.checkCollision(p.x, p.y, 2)) {
+                p.dead = true;
+                this.createExplosion(p.x, p.y, '#fff');
+            }
+        });
     }
 
-    update(deltaTime, map, squad) {
-        this.fireTimer += deltaTime;
-        if (this.fireTimer >= this.fireRate) {
-            const nearest = this.findNearestEnemy(squad);
-            if (nearest && nearest.dist < this.range) {
-                this.fire(nearest.enemy);
-                this.fireTimer = 0;
-            }
+    createExplosion(x, y, color) {
+        for (let i = 0; i < 10; i++) {
+            this.particles.push(new Particle(x, y, color));
         }
     }
 
     draw(ctx) {
-        ctx.save();
-        ctx.translate(this.x, this.y);
-
-        // Base da torre
-        ctx.fillStyle = '#222';
-        ctx.strokeStyle = this.color;
-        ctx.lineWidth = 2;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = this.color;
-
-        ctx.beginPath();
-        ctx.rect(-this.radius, -this.radius, this.radius * 2, this.radius * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Canhão central
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(0, 0, 8, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.restore();
-
-        // Barra de vida (reutiliza lógica da Unit se necessário, mas desenhamos aqui por ser diferente)
-        ctx.fillStyle = '#333';
-        ctx.fillRect(this.x - this.radius, this.y - this.radius - 15, this.radius * 2, 4);
-        ctx.fillStyle = this.color;
-        ctx.fillRect(this.x - this.radius, this.y - this.radius - 15, (this.radius * 2) * (this.health / 150), 4);
+        this.particles.forEach(p => p.draw(ctx));
+        this.projectiles.forEach(p => p.draw(ctx));
+        this.squad.forEach(unit => unit.draw(ctx));
+        this.enemies.forEach(enemy => enemy.draw(ctx));
     }
 }
 
-
-checkProjectileCollisions() {
-    this.projectiles.forEach(p => {
-        const targets = p.ownerType === 'squad' ? this.enemies : this.squad;
-        targets.forEach(t => {
-            const dx = p.x - t.x;
-            const dy = p.y - t.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < t.radius + 2) {
-                t.health -= 10;
-                p.dead = true;
-                this.createExplosion(p.x, p.y, p.color);
-            }
-        });
-
-        if (this.game.map.checkCollision(p.x, p.y, 2)) {
-            p.dead = true;
-            this.createExplosion(p.x, p.y, '#fff');
-        }
-    });
-}
-
-createExplosion(x, y, color) {
-    for (let i = 0; i < 8; i++) {
-        this.particles.push(new Particle(x, y, color));
-    }
-}
-
-draw(ctx) {
-    this.particles.forEach(p => p.draw(ctx));
-    this.projectiles.forEach(p => p.draw(ctx));
-    this.squad.forEach(unit => unit.draw(ctx));
-    this.enemies.forEach(enemy => enemy.draw(ctx));
-}
-}
-
-class Unit {
+export class Unit {
     constructor(x, y, type, manager) {
         this.x = x;
         this.y = y;
@@ -175,6 +120,7 @@ class Unit {
         this.target = null;
         this.color = type === 'squad' ? '#00f2ff' : '#ff3366';
         this.health = 100;
+        this.maxHealth = 100;
 
         // Combate
         this.range = 250;
@@ -189,7 +135,6 @@ class Unit {
     update(deltaTime, map, enemies) {
         this.fireTimer += deltaTime;
 
-        // Atirar automaticamente
         if (this.fireTimer >= this.fireRate) {
             const nearest = this.findNearestEnemy(enemies);
             if (nearest && nearest.dist < this.range) {
@@ -248,15 +193,15 @@ class Unit {
         ctx.translate(this.x, this.y);
 
         // Barra de vida
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-this.radius, -this.radius - 10, this.radius * 2, 4);
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-this.radius, -this.radius - 12, this.radius * 2, 4);
         ctx.fillStyle = this.color;
-        ctx.fillRect(-this.radius, -this.radius - 10, (this.radius * 2) * (this.health / 100), 4);
+        ctx.fillRect(-this.radius, -this.radius - 12, (this.radius * 2) * (this.health / this.maxHealth), 4);
 
         ctx.shadowBlur = 10;
         ctx.shadowColor = this.color;
-
         ctx.fillStyle = this.color;
+
         ctx.beginPath();
         ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -269,14 +214,14 @@ class Unit {
 }
 
 class Enemy extends Unit {
-    constructor(x, y) {
-        super(x, y, 'enemy', null);
+    constructor(x, y, manager) {
+        super(x, y, 'enemy', manager);
         this.speed = 60;
-        this.health = 50;
+        this.health = 40;
+        this.maxHealth = 40;
     }
 
     update(deltaTime, map, squad) {
-        // Segue a unidade mais próxima da squad
         const nearest = this.findNearestEnemy(squad);
         if (nearest) {
             this.setTarget(nearest.enemy.x, nearest.enemy.y);
@@ -285,16 +230,68 @@ class Enemy extends Unit {
     }
 }
 
+class Turret extends Unit {
+    constructor(x, y, manager) {
+        super(x, y, 'enemy', manager);
+        this.color = '#ff9900';
+        this.health = 120;
+        this.maxHealth = 120;
+        this.range = 350;
+        this.fireRate = 1.6;
+        this.radius = 18;
+    }
+
+    update(deltaTime, map, squad) {
+        this.fireTimer += deltaTime;
+        if (this.fireTimer >= this.fireRate) {
+            const nearest = this.findNearestEnemy(squad);
+            if (nearest && nearest.dist < this.range) {
+                this.fire(nearest.enemy);
+                this.fireTimer = 0;
+            }
+        }
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // Barra de vida
+        ctx.fillStyle = '#111';
+        ctx.fillRect(-this.radius, -this.radius - 15, this.radius * 2, 5);
+        ctx.fillStyle = this.color;
+        ctx.fillRect(-this.radius, -this.radius - 15, (this.radius * 2) * (this.health / this.maxHealth), 5);
+
+        ctx.fillStyle = '#222';
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = this.color;
+
+        ctx.beginPath();
+        ctx.rect(-this.radius, -this.radius, this.radius * 2, this.radius * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(0, 0, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
 class Projectile {
     constructor(x, y, angle, ownerType, color) {
         this.x = x;
         this.y = y;
         this.angle = angle;
-        this.speed = 400;
+        this.speed = 450;
         this.ownerType = ownerType;
         this.color = color;
         this.dead = false;
-        this.life = 2; // Segundos de vida
+        this.life = 2.0;
     }
 
     update(deltaTime) {
@@ -306,13 +303,13 @@ class Projectile {
 
     draw(ctx) {
         ctx.save();
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = 10;
         ctx.shadowColor = this.color;
         ctx.strokeStyle = this.color;
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(this.x, this.y);
-        ctx.lineTo(this.x - Math.cos(this.angle) * 10, this.y - Math.sin(this.angle) * 10);
+        ctx.lineTo(this.x - Math.cos(this.angle) * 12, this.y - Math.sin(this.angle) * 12);
         ctx.stroke();
         ctx.restore();
     }
@@ -324,24 +321,23 @@ class Particle {
         this.y = y;
         this.color = color;
         const angle = Math.random() * Math.PI * 2;
-        const speed = Math.random() * 100 + 50;
+        const speed = Math.random() * 120 + 60;
         this.vx = Math.cos(angle) * speed;
         this.vy = Math.sin(angle) * speed;
         this.life = 1.0;
-        this.size = Math.random() * 3 + 1;
+        this.size = Math.random() * 4 + 1;
     }
 
     update(deltaTime) {
         this.x += this.vx * deltaTime;
         this.y += this.vy * deltaTime;
-        this.life -= deltaTime * 2;
+        this.life -= deltaTime * 2.5;
     }
 
     draw(ctx) {
         ctx.fillStyle = this.color;
-        ctx.globalAlpha = this.life;
+        ctx.globalAlpha = Math.max(0, this.life);
         ctx.fillRect(this.x, this.y, this.size, this.size);
         ctx.globalAlpha = 1.0;
     }
 }
-
